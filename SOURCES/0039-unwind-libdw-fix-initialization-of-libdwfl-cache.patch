@@ -1,0 +1,36 @@
+From 69b2c33a77fa687feb41fafdbe187013aa812384 Mon Sep 17 00:00:00 2001
+From: "Dmitry V. Levin" <ldv@altlinux.org>
+Date: Tue, 7 Jan 2020 18:54:55 +0000
+Subject: [PATCH] unwind-libdw: fix initialization of libdwfl cache
+
+This fixes stack trace printing for early syscalls that precede
+the first syscall from memory mapping or execve families.
+
+* unwind-libdw.c (tcb_init): Set struct ctx.last_proc_updating
+to a value different from mapping_generation so that libdwfl cache
+is properly initialized before the first use.
+* NEWS: Mention this fix.
+
+Resolves: https://bugzilla.redhat.com/show_bug.cgi?id=1788636
+---
+Backport changes:
+ - NEWS hunk has been dropped.
+
+---
+ NEWS           | 2 ++
+ unwind-libdw.c | 2 +-
+ 2 files changed, 3 insertions(+), 1 deletion(-)
+
+Index: strace-4.24/unwind-libdw.c
+===================================================================
+--- strace-4.24.orig/unwind-libdw.c	2020-01-23 12:55:01.922338273 +0100
++++ strace-4.24/unwind-libdw.c	2020-01-23 12:55:06.131299136 +0100
+@@ -69,7 +69,7 @@
+ 
+ 	struct ctx *ctx = xmalloc(sizeof(*ctx));
+ 	ctx->dwfl = dwfl;
+-	ctx->last_proc_updating = 0;
++	ctx->last_proc_updating = mapping_generation - 1;
+ 	return ctx;
+ }
+ 

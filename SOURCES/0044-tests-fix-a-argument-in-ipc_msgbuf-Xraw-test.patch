@@ -1,0 +1,53 @@
+From a75c7c4bcb6b48680275de3e99e17e0ebec811ec Mon Sep 17 00:00:00 2001
+From: "Dmitry V. Levin" <ldv@altlinux.org>
+Date: Thu, 7 Nov 2019 19:58:36 +0000
+Subject: [PATCH] tests: fix -a argument in ipc_msgbuf-Xraw test
+
+* tests/gen_tests.in (ipc_msgbuf-Xraw): Change -a argument from 20 to 19.
+---
+Backport change:
+ * tests/gen_tests.in change has been copied over to tests-m32/gen_tests.in
+   and tests-mx32/gen_tests.in.
+---
+ tests/gen_tests.in | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+Index: strace-4.24/tests/gen_tests.in
+===================================================================
+--- strace-4.24.orig/tests/gen_tests.in	2020-01-27 18:21:42.169892032 +0100
++++ strace-4.24/tests/gen_tests.in	2020-01-27 18:38:14.935773561 +0100
+@@ -147,7 +147,7 @@
+ ipc_msg-Xraw	+ipc.sh -Xraw -a16
+ ipc_msg-Xverbose	+ipc.sh -Xverbose -a34
+ ipc_msgbuf-Xabbrev	+ipc_msgbuf.test -Xabbrev
+-ipc_msgbuf-Xraw	+ipc_msgbuf.test -Xraw -a20
++ipc_msgbuf-Xraw	+ipc_msgbuf.test -Xraw -a19
+ ipc_msgbuf-Xverbose	+ipc_msgbuf.test -Xverbose
+ ipc_sem	+ipc.sh -a29
+ ipc_sem-Xabbrev	+ipc.sh -Xabbrev -a29
+Index: strace-4.24/tests-m32/gen_tests.in
+===================================================================
+--- strace-4.24.orig/tests-m32/gen_tests.in	2020-01-27 18:38:00.954898561 +0100
++++ strace-4.24/tests-m32/gen_tests.in	2020-01-27 18:38:23.407697816 +0100
+@@ -147,7 +147,7 @@
+ ipc_msg-Xraw	+ipc.sh -Xraw -a16
+ ipc_msg-Xverbose	+ipc.sh -Xverbose -a34
+ ipc_msgbuf-Xabbrev	+ipc_msgbuf.test -Xabbrev
+-ipc_msgbuf-Xraw	+ipc_msgbuf.test -Xraw -a20
++ipc_msgbuf-Xraw	+ipc_msgbuf.test -Xraw -a19
+ ipc_msgbuf-Xverbose	+ipc_msgbuf.test -Xverbose
+ ipc_sem	+ipc.sh -a29
+ ipc_sem-Xabbrev	+ipc.sh -Xabbrev -a29
+Index: strace-4.24/tests-mx32/gen_tests.in
+===================================================================
+--- strace-4.24.orig/tests-mx32/gen_tests.in	2020-01-27 18:37:59.481911731 +0100
++++ strace-4.24/tests-mx32/gen_tests.in	2020-01-27 18:38:24.645686747 +0100
+@@ -147,7 +147,7 @@
+ ipc_msg-Xraw	+ipc.sh -Xraw -a16
+ ipc_msg-Xverbose	+ipc.sh -Xverbose -a34
+ ipc_msgbuf-Xabbrev	+ipc_msgbuf.test -Xabbrev
+-ipc_msgbuf-Xraw	+ipc_msgbuf.test -Xraw -a20
++ipc_msgbuf-Xraw	+ipc_msgbuf.test -Xraw -a19
+ ipc_msgbuf-Xverbose	+ipc_msgbuf.test -Xverbose
+ ipc_sem	+ipc.sh -a29
+ ipc_sem-Xabbrev	+ipc.sh -Xabbrev -a29

@@ -1,0 +1,761 @@
+From 8e515c744935fe67e6a1b941f4c5414472c163b7 Mon Sep 17 00:00:00 2001
+From: Eugene Syromyatnikov <evgsyr@gmail.com>
+Date: Mon, 20 Jan 2020 16:19:40 +0100
+Subject: [PATCH] tests: add strace-k-p test
+
+Add a check of the stack unwinding for attached processes.
+
+* tests/stack-fcall-attach.c: New file.
+* tests/strace-k-p.expected: Likewise.
+* tests/strace-k-p.test: New test.
+* tests/Makefile.am (EXTRA_DIST): Add strace-k-p.expected and strace-k-p.test.
+(STACKTRACE_TESTS): Add strace-k-p.test
+(check_PROGRAMS): Add stack-fcall-attach.
+(stack_fcall_attach_SOURCES): New variable.
+* tests/stack-fcall.c: Include "tests.h" and <unistd.h>.
+[!ATTACH_MODE] (ATTACH_MODE): Define to 0.
+(main) [ATTACH_MODE]: Wait a bit.
+* tests/strace-k.test: Add attach mode.
+
+Complements: v5.4-18-g69b2c33 "unwind-libdw: fix initialization of libdwfl cache"
+---
+Backport changes:
+ * "SIGURG" line has been removed from tests/strace-k-p.expected, as it requires
+   v4.25~22 "Print stack traces on signals" and v4.25~21 "tests: check stack
+   unwinding for signals".
+ * "chdir" usage in tests/strace-k-p.expected has been replaced with "getpid",
+    as it is the syscall that was used in the stack-fcall.c at the time.
+ * Added the respective changes to tests/Makefile.in file.
+ * The changes to tests/stack-fcall-attach.c, tests/strace-k-p.expected,
+   tests/strace-k-p.test, tests/Makefile.am, tests/stack-fcall.c,
+   and tests/strace-k.test have been copied over to tests-m32 and tests-mx32
+   directories.
+
+---
+ tests/Makefile.am          |  8 +++++++-
+ tests/stack-fcall-attach.c |  2 ++
+ tests/stack-fcall.c        | 11 +++++++++++
+ tests/strace-k-p.expected  |  2 ++
+ tests/strace-k-p.test      | 13 +++++++++++++
+ tests/strace-k.test        | 17 ++++++++++++++++-
+ 6 files changed, 51 insertions(+), 2 deletions(-)
+ create mode 100644 tests/stack-fcall-attach.c
+ create mode 100644 tests/strace-k-p.expected
+ create mode 100755 tests/strace-k-p.test
+
+Index: strace-5.1/tests/Makefile.am
+===================================================================
+--- strace-5.1.orig/tests/Makefile.am	2020-01-23 16:56:22.081268798 +0100
++++ strace-5.1/tests/Makefile.am	2020-01-23 17:03:50.786051167 +0100
+@@ -156,6 +156,7 @@
+ 	signal_receive \
+ 	sleep \
+ 	stack-fcall \
++	stack-fcall-attach \
+ 	stack-fcall-mangled \
+ 	threads-execve \
+ 	unblock_reset_raise \
+@@ -198,6 +199,9 @@
+ stack_fcall_SOURCES = stack-fcall.c \
+ 	stack-fcall-0.c stack-fcall-1.c stack-fcall-2.c stack-fcall-3.c
+ 
++stack_fcall_attach_SOURCES = stack-fcall-attach.c \
++	stack-fcall-0.c stack-fcall-1.c stack-fcall-2.c stack-fcall-3.c
++
+ stack_fcall_mangled_SOURCES = stack-fcall-mangled.c \
+ 	stack-fcall-mangled-0.c stack-fcall-mangled-1.c \
+ 	stack-fcall-mangled-2.c stack-fcall-mangled-3.c
+@@ -205,7 +209,7 @@
+ include gen_tests.am
+ 
+ if ENABLE_STACKTRACE
+-STACKTRACE_TESTS = strace-k.test
++STACKTRACE_TESTS = strace-k.test strace-k-p.test
+ if USE_DEMANGLE
+ STACKTRACE_TESTS += strace-k-demangle.test
+ endif
+@@ -428,6 +432,8 @@
+ 	strace-ff.expected \
+ 	strace-k-demangle.expected \
+ 	strace-k-demangle.test \
++	strace-k-p.expected \
++	strace-k-p.test \
+ 	strace-k.expected \
+ 	strace-k.test \
+ 	strace-r.expected \
+Index: strace-5.1/tests/stack-fcall-attach.c
+===================================================================
+--- /dev/null	1970-01-01 00:00:00.000000000 +0000
++++ strace-5.1/tests/stack-fcall-attach.c	2020-01-23 17:03:50.786051167 +0100
+@@ -0,0 +1,2 @@
++#define ATTACH_MODE 1
++#include "stack-fcall.c"
+Index: strace-5.1/tests/stack-fcall.c
+===================================================================
+--- strace-5.1.orig/tests/stack-fcall.c	2020-01-23 17:03:50.787051163 +0100
++++ strace-5.1/tests/stack-fcall.c	2020-01-23 17:04:34.525868669 +0100
+@@ -5,10 +5,21 @@
+  * SPDX-License-Identifier: GPL-2.0-or-later
+  */
+ 
++#include "tests.h"
++#include <unistd.h>
+ #include "stack-fcall.h"
+ 
++#ifndef ATTACH_MODE
++# define ATTACH_MODE 0
++#endif
++
+ int main(void)
+ {
++#if ATTACH_MODE
++	/* sleep a bit to let the tracer time to catch up */
++	sleep(1);
++#endif
++
+ 	f0(0);
+ 	f0(1);
+ 	return 0;
+Index: strace-5.1/tests/strace-k-p.expected
+===================================================================
+--- /dev/null	1970-01-01 00:00:00.000000000 +0000
++++ strace-5.1/tests/strace-k-p.expected	2020-01-23 17:14:13.570831178 +0100
+@@ -0,0 +1,2 @@
++^chdir .*(__kernel_vsyscaln )?(__)?chdir f3 f2 f1 f0 main
++^SIGURG .*(__kernel_vsyscaln )?(__)?kill f3 f2 f1 f0 main
+Index: strace-5.1/tests/strace-k-p.test
+===================================================================
+--- /dev/null	1970-01-01 00:00:00.000000000 +0000
++++ strace-5.1/tests/strace-k-p.test	2020-01-23 17:03:50.787051163 +0100
+@@ -0,0 +1,13 @@
++#!/bin/sh
++#
++# Check strace -k for attached tracees.
++#
++# Copyright (c) 2020 The strace developers.
++# All rights reserved.
++#
++# SPDX-License-Identifier: GPL-2.0-or-later
++
++ATTACH_MODE=1
++test_prog=../stack-fcall-attach
++
++. "${srcdir=.}"/strace-k.test
+Index: strace-5.1/tests/strace-k.test
+===================================================================
+--- strace-5.1.orig/tests/strace-k.test	2020-01-23 16:56:22.081268798 +0100
++++ strace-5.1/tests/strace-k.test	2020-01-23 17:05:26.569651525 +0100
+@@ -11,6 +11,8 @@
+ 
+ . "${srcdir=.}/init.sh"
+ 
++: "${ATTACH_MODE=0}"
++
+ # strace -k is implemented using /proc/$pid/maps
+ [ -f /proc/self/maps ] ||
+ 	framework_skip_ '/proc/self/maps is not available'
+@@ -20,7 +22,19 @@
+ check_prog tr
+ 
+ run_prog "${test_prog=../stack-fcall}"
+-run_strace -e chdir -k $args
++if [ "x${ATTACH_MODE}" = "x1" ]; then
++	../set_ptracer_any "${test_prog}" >> "$EXP" &
++	tracee_pid=$!
++
++	while ! [ -s "$EXP" ]; do
++		kill -0 "$tracee_pid" 2> /dev/null ||
++			fail_ 'set_ptracer_any failed'
++	done
++
++	run_strace -e chdir -k -p "$tracee_pid"
++else
++	run_strace -e chdir -k $args
++fi
+ 
+ expected="$srcdir/$NAME.expected"
+ awk '
+Index: strace-5.1/tests/Makefile.in
+===================================================================
+--- strace-5.1.orig/tests/Makefile.in	2020-01-23 16:56:22.086268802 +0100
++++ strace-5.1/tests/Makefile.in	2020-01-23 17:07:45.456135366 +0100
+@@ -144,9 +144,9 @@
+ 	seccomp-strict$(EXEEXT) select-P$(EXEEXT) \
+ 	set_ptracer_any$(EXEEXT) set_sigblock$(EXEEXT) \
+ 	set_sigign$(EXEEXT) signal_receive$(EXEEXT) sleep$(EXEEXT) \
+-	stack-fcall$(EXEEXT) stack-fcall-mangled$(EXEEXT) \
+-	threads-execve$(EXEEXT) unblock_reset_raise$(EXEEXT) \
+-	unix-pair-send-recv$(EXEEXT) \
++	stack-fcall$(EXEEXT) stack-fcall-attach$(EXEEXT) \
++	stack-fcall-mangled$(EXEEXT) threads-execve$(EXEEXT) \
++	unblock_reset_raise$(EXEEXT) unix-pair-send-recv$(EXEEXT) \
+ 	unix-pair-sendto-recvfrom$(EXEEXT) vfork-f$(EXEEXT) \
+ 	wait4-v$(EXEEXT) waitid-v$(EXEEXT) zeroargc$(EXEEXT)
+ @ENABLE_STACKTRACE_TRUE@@USE_DEMANGLE_TRUE@am__append_1 = strace-k-demangle.test
+@@ -2604,6 +2604,12 @@
+ stack_fcall_OBJECTS = $(am_stack_fcall_OBJECTS)
+ stack_fcall_LDADD = $(LDADD)
+ stack_fcall_DEPENDENCIES = libtests.a
++am_stack_fcall_attach_OBJECTS = stack-fcall-attach.$(OBJEXT) \
++	stack-fcall-0.$(OBJEXT) stack-fcall-1.$(OBJEXT) \
++	stack-fcall-2.$(OBJEXT) stack-fcall-3.$(OBJEXT)
++stack_fcall_attach_OBJECTS = $(am_stack_fcall_attach_OBJECTS)
++stack_fcall_attach_LDADD = $(LDADD)
++stack_fcall_attach_DEPENDENCIES = libtests.a
+ am_stack_fcall_mangled_OBJECTS = stack-fcall-mangled.$(OBJEXT) \
+ 	stack-fcall-mangled-0.$(OBJEXT) \
+ 	stack-fcall-mangled-1.$(OBJEXT) \
+@@ -3453,7 +3459,7 @@
+ 	sock_filter-v-Xverbose.c sockaddr_xlat-Xabbrev.c \
+ 	sockaddr_xlat-Xraw.c sockaddr_xlat-Xverbose.c socketcall.c \
+ 	sockopt-sol_netlink.c sockopt-timestamp.c splice.c \
+-	$(stack_fcall_SOURCES) $(stack_fcall_mangled_SOURCES) stat.c \
++	$(stack_fcall_SOURCES) $(stack_fcall_attach_SOURCES) $(stack_fcall_mangled_SOURCES) stat.c \
+ 	stat64.c statfs.c statfs64.c statx.c swap.c sxetmask.c \
+ 	symlink.c symlinkat.c sync.c sync_file_range.c \
+ 	sync_file_range2.c sysinfo.c syslog.c tee.c threads-execve.c \
+@@ -3620,7 +3626,7 @@
+ 	sock_filter-v-Xverbose.c sockaddr_xlat-Xabbrev.c \
+ 	sockaddr_xlat-Xraw.c sockaddr_xlat-Xverbose.c socketcall.c \
+ 	sockopt-sol_netlink.c sockopt-timestamp.c splice.c \
+-	$(stack_fcall_SOURCES) $(stack_fcall_mangled_SOURCES) stat.c \
++	$(stack_fcall_SOURCES) $(stack_fcall_attach_SOURCES) $(stack_fcall_mangled_SOURCES) stat.c \
+ 	stat64.c statfs.c statfs64.c statx.c swap.c sxetmask.c \
+ 	symlink.c symlinkat.c sync.c sync_file_range.c \
+ 	sync_file_range2.c sysinfo.c syslog.c tee.c threads-execve.c \
+@@ -3848,7 +3854,8 @@
+   bases=`echo $$bases`
+ RECHECK_LOGS = $(TEST_LOGS)
+ AM_RECURSIVE_TARGETS = check recheck
+-@ENABLE_STACKTRACE_TRUE@am__EXEEXT_2 = strace-k.test $(am__append_1)
++@ENABLE_STACKTRACE_TRUE@am__EXEEXT_2 = strace-k.test strace-k-p.test \
++@ENABLE_STACKTRACE_TRUE@	$(am__append_1)
+ TEST_SUITE_LOG = test-suite.log
+ TEST_EXTENSIONS = @EXEEXT@ .test
+ am__test_logs1 = $(TESTS:=.log)
+@@ -4634,6 +4641,9 @@
+ stack_fcall_SOURCES = stack-fcall.c \
+ 	stack-fcall-0.c stack-fcall-1.c stack-fcall-2.c stack-fcall-3.c
+ 
++stack_fcall_attach_SOURCES = stack-fcall-attach.c \
++	stack-fcall-0.c stack-fcall-1.c stack-fcall-2.c stack-fcall-3.c
++
+ stack_fcall_mangled_SOURCES = stack-fcall-mangled.c \
+ 	stack-fcall-mangled-0.c stack-fcall-mangled-1.c \
+ 	stack-fcall-mangled-2.c stack-fcall-mangled-3.c
+@@ -4863,7 +4873,7 @@
+ 	xettimeofday.gen.test
+ @ENABLE_STACKTRACE_FALSE@STACKTRACE_TESTS = 
+ @ENABLE_STACKTRACE_TRUE@STACKTRACE_TESTS = strace-k.test \
+-@ENABLE_STACKTRACE_TRUE@	$(am__append_1)
++@ENABLE_STACKTRACE_TRUE@	strace-k-p.test $(am__append_1)
+ DECODER_TESTS = \
+ 	bpf-success-v.test \
+ 	bpf-success.test \
+@@ -5074,6 +5084,8 @@
+ 	strace-ff.expected \
+ 	strace-k-demangle.expected \
+ 	strace-k-demangle.test \
++	strace-k-p.expected \
++	strace-k-p.test \
+ 	strace-k.expected \
+ 	strace-k.test \
+ 	strace-r.expected \
+@@ -7345,6 +7357,10 @@
+ 	@rm -f stack-fcall$(EXEEXT)
+ 	$(AM_V_CCLD)$(LINK) $(stack_fcall_OBJECTS) $(stack_fcall_LDADD) $(LIBS)
+ 
++stack-fcall-attach$(EXEEXT): $(stack_fcall_attach_OBJECTS) $(stack_fcall_attach_DEPENDENCIES) $(EXTRA_stack_fcall_attach_DEPENDENCIES) 
++	@rm -f stack-fcall-attach$(EXEEXT)
++	$(AM_V_CCLD)$(LINK) $(stack_fcall_attach_OBJECTS) $(stack_fcall_attach_LDADD) $(LIBS)
++
+ stack-fcall-mangled$(EXEEXT): $(stack_fcall_mangled_OBJECTS) $(stack_fcall_mangled_DEPENDENCIES) $(EXTRA_stack_fcall_mangled_DEPENDENCIES) 
+ 	@rm -f stack-fcall-mangled$(EXEEXT)
+ 	$(AM_V_CCLD)$(LINK) $(stack_fcall_mangled_OBJECTS) $(stack_fcall_mangled_LDADD) $(LIBS)
+@@ -8193,6 +8209,7 @@
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/stack-fcall-1.Po@am__quote@ # am--include-marker
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/stack-fcall-2.Po@am__quote@ # am--include-marker
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/stack-fcall-3.Po@am__quote@ # am--include-marker
++@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/stack-fcall-attach.Po@am__quote@ # am--include-marker
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/stack-fcall-mangled-0.Po@am__quote@ # am--include-marker
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/stack-fcall-mangled-1.Po@am__quote@ # am--include-marker
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/stack-fcall-mangled-2.Po@am__quote@ # am--include-marker
+Index: strace-5.1/tests-m32/Makefile.am
+===================================================================
+--- strace-5.1.orig/tests-m32/Makefile.am	2020-01-23 16:56:22.087268803 +0100
++++ strace-5.1/tests-m32/Makefile.am	2020-01-23 17:03:50.790051150 +0100
+@@ -156,6 +156,7 @@
+ 	signal_receive \
+ 	sleep \
+ 	stack-fcall \
++	stack-fcall-attach \
+ 	stack-fcall-mangled \
+ 	threads-execve \
+ 	unblock_reset_raise \
+@@ -198,6 +199,9 @@
+ stack_fcall_SOURCES = stack-fcall.c \
+ 	stack-fcall-0.c stack-fcall-1.c stack-fcall-2.c stack-fcall-3.c
+ 
++stack_fcall_attach_SOURCES = stack-fcall-attach.c \
++	stack-fcall-0.c stack-fcall-1.c stack-fcall-2.c stack-fcall-3.c
++
+ stack_fcall_mangled_SOURCES = stack-fcall-mangled.c \
+ 	stack-fcall-mangled-0.c stack-fcall-mangled-1.c \
+ 	stack-fcall-mangled-2.c stack-fcall-mangled-3.c
+@@ -205,7 +209,7 @@
+ include gen_tests.am
+ 
+ if ENABLE_STACKTRACE
+-STACKTRACE_TESTS = strace-k.test
++STACKTRACE_TESTS = strace-k.test strace-k-p.test
+ if USE_DEMANGLE
+ STACKTRACE_TESTS += strace-k-demangle.test
+ endif
+@@ -428,6 +432,8 @@
+ 	strace-ff.expected \
+ 	strace-k-demangle.expected \
+ 	strace-k-demangle.test \
++	strace-k-p.expected \
++	strace-k-p.test \
+ 	strace-k.expected \
+ 	strace-k.test \
+ 	strace-r.expected \
+Index: strace-5.1/tests-m32/Makefile.in
+===================================================================
+--- strace-5.1.orig/tests-m32/Makefile.in	2020-01-23 16:56:22.089268805 +0100
++++ strace-5.1/tests-m32/Makefile.in	2020-01-23 18:24:15.534972421 +0100
+@@ -144,9 +144,9 @@
+ 	seccomp-strict$(EXEEXT) select-P$(EXEEXT) \
+ 	set_ptracer_any$(EXEEXT) set_sigblock$(EXEEXT) \
+ 	set_sigign$(EXEEXT) signal_receive$(EXEEXT) sleep$(EXEEXT) \
+-	stack-fcall$(EXEEXT) stack-fcall-mangled$(EXEEXT) \
+-	threads-execve$(EXEEXT) unblock_reset_raise$(EXEEXT) \
+-	unix-pair-send-recv$(EXEEXT) \
++	stack-fcall$(EXEEXT) stack-fcall-attach$(EXEEXT) \
++	stack-fcall-mangled$(EXEEXT) threads-execve$(EXEEXT) \
++	unblock_reset_raise$(EXEEXT) unix-pair-send-recv$(EXEEXT) \
+ 	unix-pair-sendto-recvfrom$(EXEEXT) vfork-f$(EXEEXT) \
+ 	wait4-v$(EXEEXT) waitid-v$(EXEEXT) zeroargc$(EXEEXT)
+ @ENABLE_STACKTRACE_TRUE@@USE_DEMANGLE_TRUE@am__append_1 = strace-k-demangle.test
+@@ -2604,6 +2604,12 @@
+ stack_fcall_OBJECTS = $(am_stack_fcall_OBJECTS)
+ stack_fcall_LDADD = $(LDADD)
+ stack_fcall_DEPENDENCIES = libtests.a
++am_stack_fcall_attach_OBJECTS = stack-fcall-attach.$(OBJEXT) \
++	stack-fcall-0.$(OBJEXT) stack-fcall-1.$(OBJEXT) \
++	stack-fcall-2.$(OBJEXT) stack-fcall-3.$(OBJEXT)
++stack_fcall_attach_OBJECTS = $(am_stack_fcall_attach_OBJECTS)
++stack_fcall_attach_LDADD = $(LDADD)
++stack_fcall_attach_DEPENDENCIES = libtests.a
+ am_stack_fcall_mangled_OBJECTS = stack-fcall-mangled.$(OBJEXT) \
+ 	stack-fcall-mangled-0.$(OBJEXT) \
+ 	stack-fcall-mangled-1.$(OBJEXT) \
+@@ -3453,7 +3459,7 @@
+ 	sock_filter-v-Xverbose.c sockaddr_xlat-Xabbrev.c \
+ 	sockaddr_xlat-Xraw.c sockaddr_xlat-Xverbose.c socketcall.c \
+ 	sockopt-sol_netlink.c sockopt-timestamp.c splice.c \
+-	$(stack_fcall_SOURCES) $(stack_fcall_mangled_SOURCES) stat.c \
++	$(stack_fcall_SOURCES)  $(stack_fcall_attach_SOURCES) $(stack_fcall_mangled_SOURCES) stat.c \
+ 	stat64.c statfs.c statfs64.c statx.c swap.c sxetmask.c \
+ 	symlink.c symlinkat.c sync.c sync_file_range.c \
+ 	sync_file_range2.c sysinfo.c syslog.c tee.c threads-execve.c \
+@@ -3620,7 +3626,7 @@
+ 	sock_filter-v-Xverbose.c sockaddr_xlat-Xabbrev.c \
+ 	sockaddr_xlat-Xraw.c sockaddr_xlat-Xverbose.c socketcall.c \
+ 	sockopt-sol_netlink.c sockopt-timestamp.c splice.c \
+-	$(stack_fcall_SOURCES) $(stack_fcall_mangled_SOURCES) stat.c \
++	$(stack_fcall_SOURCES)  $(stack_fcall_attach_SOURCES) $(stack_fcall_mangled_SOURCES) stat.c \
+ 	stat64.c statfs.c statfs64.c statx.c swap.c sxetmask.c \
+ 	symlink.c symlinkat.c sync.c sync_file_range.c \
+ 	sync_file_range2.c sysinfo.c syslog.c tee.c threads-execve.c \
+@@ -3848,7 +3854,8 @@
+   bases=`echo $$bases`
+ RECHECK_LOGS = $(TEST_LOGS)
+ AM_RECURSIVE_TARGETS = check recheck
+-@ENABLE_STACKTRACE_TRUE@am__EXEEXT_2 = strace-k.test $(am__append_1)
++@ENABLE_STACKTRACE_TRUE@am__EXEEXT_2 = strace-k.test strace-k-p.test \
++@ENABLE_STACKTRACE_TRUE@	$(am__append_1)
+ TEST_SUITE_LOG = test-suite.log
+ TEST_EXTENSIONS = @EXEEXT@ .test
+ am__test_logs1 = $(TESTS:=.log)
+@@ -4634,6 +4641,9 @@
+ stack_fcall_SOURCES = stack-fcall.c \
+ 	stack-fcall-0.c stack-fcall-1.c stack-fcall-2.c stack-fcall-3.c
+ 
++stack_fcall_attach_SOURCES = stack-fcall-attach.c \
++	stack-fcall-0.c stack-fcall-1.c stack-fcall-2.c stack-fcall-3.c
++
+ stack_fcall_mangled_SOURCES = stack-fcall-mangled.c \
+ 	stack-fcall-mangled-0.c stack-fcall-mangled-1.c \
+ 	stack-fcall-mangled-2.c stack-fcall-mangled-3.c
+@@ -4863,7 +4873,7 @@
+ 	xettimeofday.gen.test
+ @ENABLE_STACKTRACE_FALSE@STACKTRACE_TESTS = 
+ @ENABLE_STACKTRACE_TRUE@STACKTRACE_TESTS = strace-k.test \
+-@ENABLE_STACKTRACE_TRUE@	$(am__append_1)
++@ENABLE_STACKTRACE_TRUE@	strace-k-p.test $(am__append_1)
+ DECODER_TESTS = \
+ 	bpf-success-v.test \
+ 	bpf-success.test \
+@@ -5074,6 +5084,8 @@
+ 	strace-ff.expected \
+ 	strace-k-demangle.expected \
+ 	strace-k-demangle.test \
++	strace-k-p.expected \
++	strace-k-p.test \
+ 	strace-k.expected \
+ 	strace-k.test \
+ 	strace-r.expected \
+@@ -7345,6 +7357,10 @@
+ 	@rm -f stack-fcall$(EXEEXT)
+ 	$(AM_V_CCLD)$(LINK) $(stack_fcall_OBJECTS) $(stack_fcall_LDADD) $(LIBS)
+ 
++stack-fcall-attach$(EXEEXT): $(stack_fcall_attach_OBJECTS) $(stack_fcall_attach_DEPENDENCIES) $(EXTRA_stack_fcall_attach_DEPENDENCIES) 
++	@rm -f stack-fcall-attach$(EXEEXT)
++	$(AM_V_CCLD)$(LINK) $(stack_fcall_attach_OBJECTS) $(stack_fcall_attach_LDADD) $(LIBS)
++
+ stack-fcall-mangled$(EXEEXT): $(stack_fcall_mangled_OBJECTS) $(stack_fcall_mangled_DEPENDENCIES) $(EXTRA_stack_fcall_mangled_DEPENDENCIES) 
+ 	@rm -f stack-fcall-mangled$(EXEEXT)
+ 	$(AM_V_CCLD)$(LINK) $(stack_fcall_mangled_OBJECTS) $(stack_fcall_mangled_LDADD) $(LIBS)
+@@ -8193,6 +8209,7 @@
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/stack-fcall-1.Po@am__quote@ # am--include-marker
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/stack-fcall-2.Po@am__quote@ # am--include-marker
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/stack-fcall-3.Po@am__quote@ # am--include-marker
++@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/stack-fcall-attach.Po@am__quote@ # am--include-marker
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/stack-fcall-mangled-0.Po@am__quote@ # am--include-marker
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/stack-fcall-mangled-1.Po@am__quote@ # am--include-marker
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/stack-fcall-mangled-2.Po@am__quote@ # am--include-marker
+@@ -9777,6 +9794,7 @@
+ 	-rm -f ./$(DEPDIR)/stack-fcall-1.Po
+ 	-rm -f ./$(DEPDIR)/stack-fcall-2.Po
+ 	-rm -f ./$(DEPDIR)/stack-fcall-3.Po
++	-rm -f ./$(DEPDIR)/stack-fcall-attach.Po
+ 	-rm -f ./$(DEPDIR)/stack-fcall-mangled-0.Po
+ 	-rm -f ./$(DEPDIR)/stack-fcall-mangled-1.Po
+ 	-rm -f ./$(DEPDIR)/stack-fcall-mangled-2.Po
+@@ -10468,6 +10486,7 @@
+ 	-rm -f ./$(DEPDIR)/stack-fcall-1.Po
+ 	-rm -f ./$(DEPDIR)/stack-fcall-2.Po
+ 	-rm -f ./$(DEPDIR)/stack-fcall-3.Po
++	-rm -f ./$(DEPDIR)/stack-fcall-attach.Po
+ 	-rm -f ./$(DEPDIR)/stack-fcall-mangled-0.Po
+ 	-rm -f ./$(DEPDIR)/stack-fcall-mangled-1.Po
+ 	-rm -f ./$(DEPDIR)/stack-fcall-mangled-2.Po
+Index: strace-5.1/tests-mx32/Makefile.am
+===================================================================
+--- strace-5.1.orig/tests-mx32/Makefile.am	2020-01-23 16:56:22.090268805 +0100
++++ strace-5.1/tests-mx32/Makefile.am	2020-01-23 17:03:50.793051138 +0100
+@@ -156,6 +156,7 @@
+ 	signal_receive \
+ 	sleep \
+ 	stack-fcall \
++	stack-fcall-attach \
+ 	stack-fcall-mangled \
+ 	threads-execve \
+ 	unblock_reset_raise \
+@@ -198,6 +199,9 @@
+ stack_fcall_SOURCES = stack-fcall.c \
+ 	stack-fcall-0.c stack-fcall-1.c stack-fcall-2.c stack-fcall-3.c
+ 
++stack_fcall_attach_SOURCES = stack-fcall-attach.c \
++	stack-fcall-0.c stack-fcall-1.c stack-fcall-2.c stack-fcall-3.c
++
+ stack_fcall_mangled_SOURCES = stack-fcall-mangled.c \
+ 	stack-fcall-mangled-0.c stack-fcall-mangled-1.c \
+ 	stack-fcall-mangled-2.c stack-fcall-mangled-3.c
+@@ -205,7 +209,7 @@
+ include gen_tests.am
+ 
+ if ENABLE_STACKTRACE
+-STACKTRACE_TESTS = strace-k.test
++STACKTRACE_TESTS = strace-k.test strace-k-p.test
+ if USE_DEMANGLE
+ STACKTRACE_TESTS += strace-k-demangle.test
+ endif
+@@ -428,6 +432,8 @@
+ 	strace-ff.expected \
+ 	strace-k-demangle.expected \
+ 	strace-k-demangle.test \
++	strace-k-p.expected \
++	strace-k-p.test \
+ 	strace-k.expected \
+ 	strace-k.test \
+ 	strace-r.expected \
+Index: strace-5.1/tests-mx32/Makefile.in
+===================================================================
+--- strace-5.1.orig/tests-mx32/Makefile.in	2020-01-23 16:56:22.092268807 +0100
++++ strace-5.1/tests-mx32/Makefile.in	2020-01-23 17:13:00.583709367 +0100
+@@ -144,9 +144,9 @@
+ 	seccomp-strict$(EXEEXT) select-P$(EXEEXT) \
+ 	set_ptracer_any$(EXEEXT) set_sigblock$(EXEEXT) \
+ 	set_sigign$(EXEEXT) signal_receive$(EXEEXT) sleep$(EXEEXT) \
+-	stack-fcall$(EXEEXT) stack-fcall-mangled$(EXEEXT) \
+-	threads-execve$(EXEEXT) unblock_reset_raise$(EXEEXT) \
+-	unix-pair-send-recv$(EXEEXT) \
++	stack-fcall$(EXEEXT) stack-fcall-attach$(EXEEXT) \
++	stack-fcall-mangled$(EXEEXT) threads-execve$(EXEEXT) \
++	unblock_reset_raise$(EXEEXT) unix-pair-send-recv$(EXEEXT) \
+ 	unix-pair-sendto-recvfrom$(EXEEXT) vfork-f$(EXEEXT) \
+ 	wait4-v$(EXEEXT) waitid-v$(EXEEXT) zeroargc$(EXEEXT)
+ @ENABLE_STACKTRACE_TRUE@@USE_DEMANGLE_TRUE@am__append_1 = strace-k-demangle.test
+@@ -2604,6 +2604,12 @@
+ stack_fcall_OBJECTS = $(am_stack_fcall_OBJECTS)
+ stack_fcall_LDADD = $(LDADD)
+ stack_fcall_DEPENDENCIES = libtests.a
++am_stack_fcall_attach_OBJECTS = stack-fcall-attach.$(OBJEXT) \
++	stack-fcall-0.$(OBJEXT) stack-fcall-1.$(OBJEXT) \
++	stack-fcall-2.$(OBJEXT) stack-fcall-3.$(OBJEXT)
++stack_fcall_attach_OBJECTS = $(am_stack_fcall_attach_OBJECTS)
++stack_fcall_attach_LDADD = $(LDADD)
++stack_fcall_attach_DEPENDENCIES = libtests.a
+ am_stack_fcall_mangled_OBJECTS = stack-fcall-mangled.$(OBJEXT) \
+ 	stack-fcall-mangled-0.$(OBJEXT) \
+ 	stack-fcall-mangled-1.$(OBJEXT) \
+@@ -3453,7 +3459,7 @@
+ 	sock_filter-v-Xverbose.c sockaddr_xlat-Xabbrev.c \
+ 	sockaddr_xlat-Xraw.c sockaddr_xlat-Xverbose.c socketcall.c \
+ 	sockopt-sol_netlink.c sockopt-timestamp.c splice.c \
+-	$(stack_fcall_SOURCES) $(stack_fcall_mangled_SOURCES) stat.c \
++	$(stack_fcall_SOURCES)  $(stack_fcall_attach_SOURCES) $(stack_fcall_mangled_SOURCES) stat.c \
+ 	stat64.c statfs.c statfs64.c statx.c swap.c sxetmask.c \
+ 	symlink.c symlinkat.c sync.c sync_file_range.c \
+ 	sync_file_range2.c sysinfo.c syslog.c tee.c threads-execve.c \
+@@ -3620,7 +3626,7 @@
+ 	sock_filter-v-Xverbose.c sockaddr_xlat-Xabbrev.c \
+ 	sockaddr_xlat-Xraw.c sockaddr_xlat-Xverbose.c socketcall.c \
+ 	sockopt-sol_netlink.c sockopt-timestamp.c splice.c \
+-	$(stack_fcall_SOURCES) $(stack_fcall_mangled_SOURCES) stat.c \
++	$(stack_fcall_SOURCES)  $(stack_fcall_attach_SOURCES) $(stack_fcall_mangled_SOURCES) stat.c \
+ 	stat64.c statfs.c statfs64.c statx.c swap.c sxetmask.c \
+ 	symlink.c symlinkat.c sync.c sync_file_range.c \
+ 	sync_file_range2.c sysinfo.c syslog.c tee.c threads-execve.c \
+@@ -4634,6 +4640,10 @@
+ stack_fcall_SOURCES = stack-fcall.c \
+ 	stack-fcall-0.c stack-fcall-1.c stack-fcall-2.c stack-fcall-3.c
+ 
++stack_fcall_attach_SOURCES = stack-fcall-attach.c \
++	stack-fcall-0.c stack-fcall-1.c \
++	stack-fcall-2.c stack-fcall-3.c
++
+ stack_fcall_mangled_SOURCES = stack-fcall-mangled.c \
+ 	stack-fcall-mangled-0.c stack-fcall-mangled-1.c \
+ 	stack-fcall-mangled-2.c stack-fcall-mangled-3.c
+@@ -7345,6 +7355,10 @@
+ 	@rm -f stack-fcall$(EXEEXT)
+ 	$(AM_V_CCLD)$(LINK) $(stack_fcall_OBJECTS) $(stack_fcall_LDADD) $(LIBS)
+ 
++stack-fcall-attach$(EXEEXT): $(stack_fcall_attach_OBJECTS) $(stack_fcall_attach_DEPENDENCIES) $(EXTRA_stack_fcall_attach_DEPENDENCIES) 
++	@rm -f stack-fcall$(EXEEXT)
++	$(AM_V_CCLD)$(LINK) $(stack_fcall_attach_OBJECTS) $(stack_fcall_attach_LDADD) $(LIBS)
++
+ stack-fcall-mangled$(EXEEXT): $(stack_fcall_mangled_OBJECTS) $(stack_fcall_mangled_DEPENDENCIES) $(EXTRA_stack_fcall_mangled_DEPENDENCIES) 
+ 	@rm -f stack-fcall-mangled$(EXEEXT)
+ 	$(AM_V_CCLD)$(LINK) $(stack_fcall_mangled_OBJECTS) $(stack_fcall_mangled_LDADD) $(LIBS)
+@@ -8193,6 +8207,7 @@
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/stack-fcall-1.Po@am__quote@ # am--include-marker
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/stack-fcall-2.Po@am__quote@ # am--include-marker
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/stack-fcall-3.Po@am__quote@ # am--include-marker
++@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/stack-fcall-attach.Po@am__quote@ # am--include-marker
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/stack-fcall-mangled-0.Po@am__quote@ # am--include-marker
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/stack-fcall-mangled-1.Po@am__quote@ # am--include-marker
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/stack-fcall-mangled-2.Po@am__quote@ # am--include-marker
+@@ -9777,6 +9792,7 @@
+ 	-rm -f ./$(DEPDIR)/stack-fcall-1.Po
+ 	-rm -f ./$(DEPDIR)/stack-fcall-2.Po
+ 	-rm -f ./$(DEPDIR)/stack-fcall-3.Po
++	-rm -f ./$(DEPDIR)/stack-fcall-attach.Po
+ 	-rm -f ./$(DEPDIR)/stack-fcall-mangled-0.Po
+ 	-rm -f ./$(DEPDIR)/stack-fcall-mangled-1.Po
+ 	-rm -f ./$(DEPDIR)/stack-fcall-mangled-2.Po
+@@ -10468,6 +10484,7 @@
+ 	-rm -f ./$(DEPDIR)/stack-fcall-1.Po
+ 	-rm -f ./$(DEPDIR)/stack-fcall-2.Po
+ 	-rm -f ./$(DEPDIR)/stack-fcall-3.Po
++	-rm -f ./$(DEPDIR)/stack-fcall-attach.Po
+ 	-rm -f ./$(DEPDIR)/stack-fcall-mangled-0.Po
+ 	-rm -f ./$(DEPDIR)/stack-fcall-mangled-1.Po
+ 	-rm -f ./$(DEPDIR)/stack-fcall-mangled-2.Po
+Index: strace-5.1/tests-m32/stack-fcall-attach.c
+===================================================================
+--- /dev/null	1970-01-01 00:00:00.000000000 +0000
++++ strace-5.1/tests-m32/stack-fcall-attach.c	2020-01-23 17:03:50.796051125 +0100
+@@ -0,0 +1,2 @@
++#define ATTACH_MODE 1
++#include "stack-fcall.c"
+Index: strace-5.1/tests-m32/stack-fcall.c
+===================================================================
+--- strace-5.1.orig/tests-m32/stack-fcall.c	2020-01-23 17:03:50.796051125 +0100
++++ strace-5.1/tests-m32/stack-fcall.c	2020-01-23 17:08:04.027080020 +0100
+@@ -5,10 +5,21 @@
+  * SPDX-License-Identifier: GPL-2.0-or-later
+  */
+ 
++#include "tests.h"
++#include <unistd.h>
+ #include "stack-fcall.h"
+ 
++#ifndef ATTACH_MODE
++# define ATTACH_MODE 0
++#endif
++
+ int main(void)
+ {
++#if ATTACH_MODE
++	/* sleep a bit to let the tracer time to catch up */
++	sleep(1);
++#endif
++
+ 	f0(0);
+ 	f0(1);
+ 	return 0;
+Index: strace-5.1/tests-m32/strace-k-p.expected
+===================================================================
+--- /dev/null	1970-01-01 00:00:00.000000000 +0000
++++ strace-5.1/tests-m32/strace-k-p.expected	2020-01-23 17:14:16.083835372 +0100
+@@ -0,0 +1,2 @@
++^chdir .*(__kernel_vsyscaln )?(__)?chdir f3 f2 f1 f0 main
++^SIGURG .*(__kernel_vsyscaln )?(__)?kill f3 f2 f1 f0 main
+Index: strace-5.1/tests-m32/strace-k-p.test
+===================================================================
+--- /dev/null	1970-01-01 00:00:00.000000000 +0000
++++ strace-5.1/tests-m32/strace-k-p.test	2020-01-23 17:03:50.796051125 +0100
+@@ -0,0 +1,13 @@
++#!/bin/sh
++#
++# Check strace -k for attached tracees.
++#
++# Copyright (c) 2020 The strace developers.
++# All rights reserved.
++#
++# SPDX-License-Identifier: GPL-2.0-or-later
++
++ATTACH_MODE=1
++test_prog=../stack-fcall-attach
++
++. "${srcdir=.}"/strace-k.test
+Index: strace-5.1/tests-m32/strace-k.test
+===================================================================
+--- strace-5.1.orig/tests-m32/strace-k.test	2020-01-23 17:03:50.797051121 +0100
++++ strace-5.1/tests-m32/strace-k.test	2020-01-23 17:13:44.509782677 +0100
+@@ -11,6 +11,8 @@
+ 
+ . "${srcdir=.}/init.sh"
+ 
++: "${ATTACH_MODE=0}"
++
+ # strace -k is implemented using /proc/$pid/maps
+ [ -f /proc/self/maps ] ||
+ 	framework_skip_ '/proc/self/maps is not available'
+@@ -20,7 +22,19 @@
+ check_prog tr
+ 
+ run_prog "${test_prog=../stack-fcall}"
+-run_strace -e chdir -k $args
++if [ "x${ATTACH_MODE}" = "x1" ]; then
++	../set_ptracer_any "${test_prog}" >> "$EXP" &
++	tracee_pid=$!
++
++	while ! [ -s "$EXP" ]; do
++		kill -0 "$tracee_pid" 2> /dev/null ||
++			fail_ 'set_ptracer_any failed'
++	done
++
++	run_strace -e chdir -k -p "$tracee_pid"
++else
++	run_strace -e chdir -k $args
++fi
+ 
+ expected="$srcdir/$NAME.expected"
+ awk '
+Index: strace-5.1/tests-mx32/stack-fcall-attach.c
+===================================================================
+--- /dev/null	1970-01-01 00:00:00.000000000 +0000
++++ strace-5.1/tests-mx32/stack-fcall-attach.c	2020-01-23 17:03:50.797051121 +0100
+@@ -0,0 +1,2 @@
++#define ATTACH_MODE 1
++#include "stack-fcall.c"
+Index: strace-5.1/tests-mx32/stack-fcall.c
+===================================================================
+--- strace-5.1.orig/tests-mx32/stack-fcall.c	2020-01-23 17:03:50.797051121 +0100
++++ strace-5.1/tests-mx32/stack-fcall.c	2020-01-23 17:08:06.451072796 +0100
+@@ -5,10 +5,21 @@
+  * SPDX-License-Identifier: GPL-2.0-or-later
+  */
+ 
++#include "tests.h"
++#include <unistd.h>
+ #include "stack-fcall.h"
+ 
++#ifndef ATTACH_MODE
++# define ATTACH_MODE 0
++#endif
++
+ int main(void)
+ {
++#if ATTACH_MODE
++	/* sleep a bit to let the tracer time to catch up */
++	sleep(1);
++#endif
++
+ 	f0(0);
+ 	f0(1);
+ 	return 0;
+Index: strace-5.1/tests-mx32/strace-k-p.expected
+===================================================================
+--- /dev/null	1970-01-01 00:00:00.000000000 +0000
++++ strace-5.1/tests-mx32/strace-k-p.expected	2020-01-23 17:14:17.786838214 +0100
+@@ -0,0 +1,2 @@
++^chdir .*(__kernel_vsyscaln )?(__)?chdir f3 f2 f1 f0 main
++^SIGURG .*(__kernel_vsyscaln )?(__)?kill f3 f2 f1 f0 main
+Index: strace-5.1/tests-mx32/strace-k-p.test
+===================================================================
+--- /dev/null	1970-01-01 00:00:00.000000000 +0000
++++ strace-5.1/tests-mx32/strace-k-p.test	2020-01-23 17:03:50.797051121 +0100
+@@ -0,0 +1,13 @@
++#!/bin/sh
++#
++# Check strace -k for attached tracees.
++#
++# Copyright (c) 2020 The strace developers.
++# All rights reserved.
++#
++# SPDX-License-Identifier: GPL-2.0-or-later
++
++ATTACH_MODE=1
++test_prog=../stack-fcall-attach
++
++. "${srcdir=.}"/strace-k.test
+Index: strace-5.1/tests-mx32/strace-k.test
+===================================================================
+--- strace-5.1.orig/tests-mx32/strace-k.test	2020-01-23 17:03:50.797051121 +0100
++++ strace-5.1/tests-mx32/strace-k.test	2020-01-23 17:13:41.793778144 +0100
+@@ -11,6 +11,8 @@
+ 
+ . "${srcdir=.}/init.sh"
+ 
++: "${ATTACH_MODE=0}"
++
+ # strace -k is implemented using /proc/$pid/maps
+ [ -f /proc/self/maps ] ||
+ 	framework_skip_ '/proc/self/maps is not available'
+@@ -20,7 +22,19 @@
+ check_prog tr
+ 
+ run_prog "${test_prog=../stack-fcall}"
+-run_strace -e chdir -k $args
++if [ "x${ATTACH_MODE}" = "x1" ]; then
++	../set_ptracer_any "${test_prog}" >> "$EXP" &
++	tracee_pid=$!
++
++	while ! [ -s "$EXP" ]; do
++		kill -0 "$tracee_pid" 2> /dev/null ||
++			fail_ 'set_ptracer_any failed'
++	done
++
++	run_strace -e chdir -k -p "$tracee_pid"
++else
++	run_strace -e chdir -k $args
++fi
+ 
+ expected="$srcdir/$NAME.expected"
+ awk '
