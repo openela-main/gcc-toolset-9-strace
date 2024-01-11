@@ -1,0 +1,90 @@
+From 4377e3a1535a0ec3a42da8a1366ad6943f4efa0e Mon Sep 17 00:00:00 2001
+From: "Dmitry V. Levin" <ldv@altlinux.org>
+Date: Sun, 4 Aug 2019 08:47:00 +0000
+Subject: [PATCH] tests: fix expected output for some ipc tests
+
+* tests/gen_tests.in (ipc_msgbuf-Xraw, ipc_shm, ipc_shm-Xabbrev,
+ipc_shm-Xverbose): Adjust -a argument.
+---
+Backport changes:
+ * tests/gen_tests.in change is copied over to tests-m32/gen_tests.in
+   and tests-m32/gen_tests.in
+---
+ tests/gen_tests.in | 8 ++++----
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+
+Index: strace-4.24/tests/gen_tests.in
+===================================================================
+--- strace-4.24.orig/tests/gen_tests.in	2020-01-27 18:21:22.896068950 +0100
++++ strace-4.24/tests/gen_tests.in	2020-01-27 18:21:42.169892032 +0100
+@@ -147,16 +147,16 @@
+ ipc_msg-Xraw	+ipc.sh -Xraw -a16
+ ipc_msg-Xverbose	+ipc.sh -Xverbose -a34
+ ipc_msgbuf-Xabbrev	+ipc_msgbuf.test -Xabbrev
+-ipc_msgbuf-Xraw	+ipc_msgbuf.test -Xraw -a22
++ipc_msgbuf-Xraw	+ipc_msgbuf.test -Xraw -a20
+ ipc_msgbuf-Xverbose	+ipc_msgbuf.test -Xverbose
+ ipc_sem	+ipc.sh -a29
+ ipc_sem-Xabbrev	+ipc.sh -Xabbrev -a29
+ ipc_sem-Xraw	+ipc.sh -Xraw -a19
+ ipc_sem-Xverbose	+ipc.sh -Xverbose -a36
+-ipc_shm	+ipc.sh -a29
+-ipc_shm-Xabbrev	+ipc.sh -Xabbrev -a29
++ipc_shm	+ipc.sh -a26
++ipc_shm-Xabbrev	+ipc.sh -Xabbrev -a26
+ ipc_shm-Xraw	+ipc.sh -Xraw -a19
+-ipc_shm-Xverbose	+ipc.sh -Xverbose -a36
++ipc_shm-Xverbose	+ipc.sh -Xverbose -a34
+ kcmp	-a22
+ kcmp-y	-a22 -y -e trace=kcmp
+ kern_features -a16
+Index: strace-4.24/tests-m32/gen_tests.in
+===================================================================
+--- strace-4.24.orig/tests-m32/gen_tests.in	2020-01-27 18:21:36.149947290 +0100
++++ strace-4.24/tests-m32/gen_tests.in	2020-01-27 18:38:00.954898561 +0100
+@@ -147,16 +147,16 @@
+ ipc_msg-Xraw	+ipc.sh -Xraw -a16
+ ipc_msg-Xverbose	+ipc.sh -Xverbose -a34
+ ipc_msgbuf-Xabbrev	+ipc_msgbuf.test -Xabbrev
+-ipc_msgbuf-Xraw	+ipc_msgbuf.test -Xraw -a22
++ipc_msgbuf-Xraw	+ipc_msgbuf.test -Xraw -a20
+ ipc_msgbuf-Xverbose	+ipc_msgbuf.test -Xverbose
+ ipc_sem	+ipc.sh -a29
+ ipc_sem-Xabbrev	+ipc.sh -Xabbrev -a29
+ ipc_sem-Xraw	+ipc.sh -Xraw -a19
+ ipc_sem-Xverbose	+ipc.sh -Xverbose -a36
+-ipc_shm	+ipc.sh -a29
+-ipc_shm-Xabbrev	+ipc.sh -Xabbrev -a29
++ipc_shm	+ipc.sh -a26
++ipc_shm-Xabbrev	+ipc.sh -Xabbrev -a26
+ ipc_shm-Xraw	+ipc.sh -Xraw -a19
+-ipc_shm-Xverbose	+ipc.sh -Xverbose -a36
++ipc_shm-Xverbose	+ipc.sh -Xverbose -a34
+ kcmp	-a22
+ kcmp-y	-a22 -y -e trace=kcmp
+ kern_features -a16
+Index: strace-4.24/tests-mx32/gen_tests.in
+===================================================================
+--- strace-4.24.orig/tests-mx32/gen_tests.in	2020-01-27 18:21:37.445935394 +0100
++++ strace-4.24/tests-mx32/gen_tests.in	2020-01-27 18:37:59.481911731 +0100
+@@ -147,16 +147,16 @@
+ ipc_msg-Xraw	+ipc.sh -Xraw -a16
+ ipc_msg-Xverbose	+ipc.sh -Xverbose -a34
+ ipc_msgbuf-Xabbrev	+ipc_msgbuf.test -Xabbrev
+-ipc_msgbuf-Xraw	+ipc_msgbuf.test -Xraw -a22
++ipc_msgbuf-Xraw	+ipc_msgbuf.test -Xraw -a20
+ ipc_msgbuf-Xverbose	+ipc_msgbuf.test -Xverbose
+ ipc_sem	+ipc.sh -a29
+ ipc_sem-Xabbrev	+ipc.sh -Xabbrev -a29
+ ipc_sem-Xraw	+ipc.sh -Xraw -a19
+ ipc_sem-Xverbose	+ipc.sh -Xverbose -a36
+-ipc_shm	+ipc.sh -a29
+-ipc_shm-Xabbrev	+ipc.sh -Xabbrev -a29
++ipc_shm	+ipc.sh -a26
++ipc_shm-Xabbrev	+ipc.sh -Xabbrev -a26
+ ipc_shm-Xraw	+ipc.sh -Xraw -a19
+-ipc_shm-Xverbose	+ipc.sh -Xverbose -a36
++ipc_shm-Xverbose	+ipc.sh -Xverbose -a34
+ kcmp	-a22
+ kcmp-y	-a22 -y -e trace=kcmp
+ kern_features -a16
